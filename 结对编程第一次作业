@@ -1,185 +1,168 @@
-#include <iostream>
-#include <stdlib.h>
-#include <fstream>
-#include <time.h>
-#include <cstdlib>
-#include <iomanip>
+#include<iostream>
+#include<stdlib.h>
 
 using namespace std;
-
-typedef struct quation//记录一个算式的结构体
+#define MAXNUM 20 //最大允许的子程序数目
+typedef struct EdgeNode //边
 {
-	int num1, num2;//算数
-	float result;//结果
-	char sign;//算数符
-}quation;
+	int adjvex;//弧指向的顶点的位置
+	int weight;//过程时间，用于aoe网
+	EdgeNode* nextarc; //指向下一条弧的指针
+};
 
-ofstream question;
-ofstream answer;//声明txt文件，用于存储question用于储存题目，answer用于存储对应的答案
-int Titlenum = 0;//全局变量，用于记录题目的编号
-
-void Addfun(int range, quation A[])//加法运算生成函数
+typedef struct VertexNode //顶点
 {
+	int in = 0;//入度
+	int time;//顶点信息,项目完成需要的时间
+	EdgeNode* firstedge;
+}VNode[MAXNUM];
 
-	A[Titlenum].num1 = rand() % range;
-	A[Titlenum].num2 = rand() % range;
-	A[Titlenum].sign = '+';
-	A[Titlenum].result = (float)A[Titlenum].num1 + A[Titlenum].num2;
-}
-
-void Subfun(int range, quation A[])//减法运算生成函数
+typedef struct ALG
 {
-	int temp;
-	A[Titlenum].num1 = rand() % range;
-	A[Titlenum].num2 = rand() % range;
-	A[Titlenum].sign = '-';
-	A[Titlenum].result = (float)A[Titlenum].num1 - A[Titlenum].num2;
-	if (A[Titlenum].result > 0)
+	VNode adjlist;
+	int numarc, numvnd;//图当中的点数和边数
+};
+
+void CreateALG(ALG* G)//构造邻接表
+{
+	int i, j, k;
+	//int b;
+	EdgeNode* e;
+	cout << "请输入子程序的数目和彼此制约关系的数目：" << endl;
+	cin >> G->numarc >> G->numvnd;
+	cout << "请输入按顺序输入（从0递增）子程序完成所需要的时间" << endl;
+	for (i = 0; i < G->numarc; i++)
 	{
-		return;
+
+		//cin >> b;
+		cin >> G->adjlist[i].time;
+		G->adjlist[i].firstedge = NULL;//将边表置为空表
+		G->adjlist[i].in = 0;//入度置0
 	}
-	else
+	cout << "请输入子程序直接的制约关系:" << endl;
+	for (k = 0; k < G->numvnd; k++)
 	{
-		temp = A[Titlenum].num1;
-		A[Titlenum].num1 = A[Titlenum].num2;
-		A[Titlenum].num2 = temp;
-	}
-}
-
-void Mulfun(int range, quation A[])//乘法生成函数
-{
-	A[Titlenum].num1 = rand() % range;
-	A[Titlenum].num2 = rand() % range;
-	A[Titlenum].sign = '*';
-	A[Titlenum].result = (float)A[Titlenum].num1 * A[Titlenum].num2;
-}
-
-void Divfun(int range, quation A[], int rtyped)//除法运算生成函数
-{
-	int sign = 1;
-	float i;
-	A[Titlenum].sign = '/';
-	while (sign)
-	{
-		A[Titlenum].num1 = rand() % range;
-		A[Titlenum].num2 = rand() % range;
-		A[Titlenum].result = (float)A[Titlenum].num1 / A[Titlenum].num2;
-		if (rtyped == 0)
-			sign = 0;
-		if (rtyped == 1)//结果为整数情况
-			if (A[Titlenum].result - (int)A[Titlenum].result == 0)
-				sign = 0;
-		if (rtyped == 2)//结果两位小数内必须除尽情况
-		{
-			i = 100 * A[Titlenum].result;//将结果扩大100倍，判断i与（int）i是否相等
-			if ((int)i - i == 0)
-				sign = 0;
-		}
-		if (A[Titlenum].num2 == 0)//除数不能为0
-			sign = 1;
+		cout << (k + 1) << ".请输入制约关系的前置程序：";
+		cin >> i;
+		cout << "请输入制约关系的后置程序：";
+		cin >> j;
+		cout << endl;
+		e = (EdgeNode*)malloc(sizeof(EdgeNode));//申请内存空间
+		e->adjvex = j;							//邻接序号未j
+		e->weight = G->adjlist[i].time;    //给边时间权重
+		e->nextarc = G->adjlist[i].firstedge;//将e指针指向当前顶点指向的结点
+		G->adjlist[i].firstedge = e;			//将当前顶点的指针指向e
+		G->adjlist[j].in++;     //后之程序进度加1
 	}
 }
-void Show(quation A[], int format1, int format2)//算式输出函数
+
+int* etv, * ltv;//事件发生的最早时间和最迟发生时间
+int* stack2;		//用于存储拓扑序列的栈
+int top2;		//用于stack2的指针
+
+
+int Topsort(ALG* GL) //拓扑排序，判断工程是否能够顺利完成,若能完成返回1，否则返回0
 {
-	int i = 1, j = 1, k = 0;
-	setiosflags(ios::left);
-	for (i = 1, k = 0; i <= Titlenum; i++, j++)
+	EdgeNode* e;
+	int i, k, gettop;
+	int top = 0;  //用于栈指针下标
+	int count = 0; //用于统计输出顶点的个数
+	int* stack;   //建立存储入度为0的顶点
+	stack = (int*)malloc(GL->numarc * sizeof(int));
+	for (i = 0; i < GL->numarc; i++)
+		if (GL->adjlist[i].in == 0)
+			stack[++top] = i;
+	top2 = 0; //初始化
+	etv = (int*)malloc(GL->numarc * sizeof(int));//初始化
+	for (i = 0; i < GL->numarc; i++)//初始化
+		etv[i] = 0;
+	stack2 = (int*)malloc(GL->numarc * sizeof(int));//初始化
+
+	while (top != 0)
 	{
-		cout << left << "(" << i << "）" << A[i].num1 << A[i].sign << A[i].num2 << "=";
-		question << left << "(" << i << ") " << A[i].num1 << A[i].sign << A[i].num2 << "=";
-		answer << "(" << i << ") " << A[i].result << endl;
-		for (k = 0; k < format2; k++)//每题之间空格控制
+		gettop = stack[top--];
+		count++;
+		stack2[++top2] = gettop; //将弹出的顶点序号压入拓扑序列的栈
+		for (e = GL->adjlist[gettop].firstedge; e; e = e->nextarc)
 		{
-			cout << " ";
-			question << " ";
-		}//for
-		if (j == format1)//每行题目输入个数控制
-		{
-			j = 0;
-			cout << endl;
-			question << endl;
-		}//if
-	}//for
-}//Show
-void Creat(int range, int rtyped, quation A[], int sum, int type)//算式题目生成函数
-{
-	int i, j;
-	for (i = 0; i < sum; i++)//生成题目
-	{
-		Titlenum++;
-		if (type == 4)
-			j = rand() % type;//随机生成算式标志
-		else j = type;
-		switch (j)
-		{
-		case 0:
-			Addfun(range, A); break;
-		case 1:
-			Subfun(range, A); break;
-		case 2:
-			Mulfun(range, A); break;
-		case 3:
-			Divfun(range, A, rtyped); break;
+			k = e->adjvex;
+			if (!(--GL->adjlist[k].in))  //顶k入度减一，若为0则入栈
+				stack[++top] = k;
+			if ((etv[gettop] + e->weight) > etv[k])  //求各顶点事件最早发生的时间值
+				etv[k] = etv[gettop] + e->weight;
 		}
 	}
+	if (count < GL->numarc) //若count小于顶点数，说明存在环
+		return 0;
+	else return 1;
 }
+
+void CriticalPath(ALG* GL)  //寻找关键路径
+{
+	EdgeNode* e;
+	int i, gettop, k, j, temp = 999;
+	int ete, lte;				//声明活动的最早发生时间和最迟发生时间变量
+	int sum = 0;					//用于记录项目完成所需的时间
+	int max = 0;					//用于记录当关键路径中结尾存在分叉的情况
+	ltv = (int*)malloc(GL->numarc * sizeof(int)); //事件最晚发生时间
+	for (i = 0; i < GL->numarc; i++)
+	{
+		ltv[i] = etv[GL->numarc - 1]; //初始化tlv
+	}
+	while (top2 != 0)
+	{
+		gettop = stack2[top2--];
+		for (e = GL->adjlist[gettop].firstedge; e; e = e->nextarc)
+		{
+			//求个顶点事件的最迟发生时间ltv值
+			k = e->adjvex;
+			if (ltv[k] - e->weight < ltv[gettop])
+			{
+				ltv[gettop] = ltv[k] - e->weight;
+			}
+		}
+	}
+	for (j = 0; j < GL->numarc; j++)
+	{
+		for (e = GL->adjlist[j].firstedge; e; e = e->nextarc)
+		{
+			k = e->adjvex;
+			ete = etv[j];		//活动最早发生时间
+			lte = ltv[k] - e->weight;  //活动最迟发生时间
+			if (ete == lte)				//两者相等及在关键路径上
+			{
+				cout << "<" << j << "," << k << ">:" << e->weight << endl;
+				if (temp != j)
+				{
+					sum += e->weight;
+					temp = j;
+					max = GL->adjlist[k].time;
+				}
+				else if (max < GL->adjlist[k].time)
+					max = GL->adjlist[k].time;
+			}
+
+		}
+	}
+	sum += max;
+	cout << "该工程项目的执行所需的时间为：" << sum << endl;
+	cout << "若想有效的缩短工程，可改善上述关键路径中子程序的执行时间";
+
+}
+
 int main()
 {
-	question.open("question.txt");
-	answer.open("answer.txt");
-	quation A[101];
-	int type, rtyped;//记录需要题目的运算类型,运算结果类型
-	int range, sum;//运算数的范围,题目的个数
-	int format1, format2;//用于记录格式输出的各项指标
-	cout << "请输入你想要制定的运算数的范围：";
-	cin >> range;
-	while (range <= 0)
+	ALG* progream;
+	progream = (ALG*)malloc(sizeof(ALG));
+	CreateALG(progream);
+	if (Topsort(progream))
+		cout << "该工程项目能够顺利完成" << endl;
+	else
 	{
-		cout << "输入错误，请重新输入：";
-		cin >> range;
+		cout << "该工程项目不能够顺利完成" << endl;
+		return 0;
 	}
-	cout << "请输入你想要的题目个数(最多可生成100个题目)： ";
-	cin >> sum;
-	while (sum <= 0)
-	{
-		cout << "输入错误，请重新输入：";
-		cin >> sum;
-	}
-	cout << "请选择你想要定制运算题目类型：0.加法运算 1.减法运算 2.乘法运算 3.除法运算 4.四种运算混合类型\n";
-	cin >> type;
-	while (type != 0 && type != 1 && type != 2 && type != 3 && type != 4)
-	{
-		cout << "输入错误，请重新输入：";
-		cin >> type;
-	}
-	cout << "请输入你想要的运算结果类型：0.无 1.只允许为整数 2.两位小数内必须除尽\n";
-	cin >> rtyped;
-	while (rtyped != 0 && rtyped != 1 && rtyped != 2)
-	{
-		cout << "输入错误，请重新输入：";
-		cin >> rtyped;
-	}
-	cout << "请选择输出格式\n" << "请输入你每行想要的题目数量：";
-	cin >> format1;
-	while (format1 <= 0)
-	{
-
-		cout << "输入错误，请重新输入：";
-		cin >> format1;
-	}
-	cout << "请输入每题之间想要的空格数：";
-	cin >> format2;
-	while (format2 < 0)
-	{
-		cout << "输入错误，请重新输入:";
-		cin >> format2;
-	}
-	srand((unsigned)time(0));//随机数种子
-	cout << "输出题目如下:\n";
-	Creat(range, rtyped, A, sum, type);
-	Show(A, format1, format2);
-	question.close();
-	answer.close();
-	cout << endl << "输出完毕,且已生成相关题目的文本question及答案文本answer.";
+	cout << "工程的关键路径如下：" << endl;
+	CriticalPath(progream);
 	return 0;
 }
